@@ -5,10 +5,14 @@
 """
 
 import json
+import random
+from datetime import datetime
 from functools import cache
 from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+LEARNING_LOG_DIR = Path(__file__).resolve().parent.parent / "learning_log"
+QUIZ_PATH = LEARNING_LOG_DIR / "quiz.json"
 MAX_RESULTS = 3
 
 
@@ -77,3 +81,76 @@ def get_lecture_summary(lecture: int) -> str:
         available = sorted(p.stem for p in (DATA_DIR / "lectures").glob("*.md"))
         return f"第{lecture}回の要点はまだありません。用意されている回: {', '.join(available)}"
     return path.read_text(encoding="utf-8")
+
+
+def make_quiz(lecture: int) -> str:
+    """指定した回の用語から1つを選び、確認問題と答えを返す。
+    「第2回の確認問題を出して」のように、復習用の問題を求められたときに使う。
+    戻り値のJSONには必ず question と answer を含める。問題文だけで答えを省略しない。
+    """
+    glossary = load_glossary()
+    terms = [entry for entry in glossary if entry["lecture"] == lecture]
+    if not terms:
+        return f"第{lecture}回に対応する用語は用語集に見つかりませんでした。"
+
+    entry = random.choice(terms)
+    quiz = {
+        "question": f"「{entry['term']}」の意味は？",
+        "answer": entry["definition"],
+    }
+    LEARNING_LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+    quizzes = []
+    if QUIZ_PATH.exists():
+        try:
+            stored = json.loads(QUIZ_PATH.read_text(encoding="utf-8"))
+            if isinstance(stored, list):
+                quizzes = stored
+        except json.JSONDecodeError:
+            quizzes = []
+    quizzes.append(quiz)
+    QUIZ_PATH.write_text(
+        json.dumps(quizzes, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return json.dumps(
+        quiz,
+        ensure_ascii=False,
+    )
+
+
+def save_learning_log() -> str:
+    """学習の記録を learning_log フォルダに保存する。
+
+    保存内容は quiz.json に蓄積された make_quiz の問題と答えだけを使用する。
+    呼び出し時はツール設定で利用者の承認を求める。承認後、
+    quiz.json が存在しない、空、壊れている場合は
+    「保存する学習記録が空です。」を返す。
+    """
+    content = ""
+    if QUIZ_PATH.exists():
+        try:
+            quizzes = json.loads(QUIZ_PATH.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            quizzes = []
+
+        sections = []
+        if isinstance(quizzes, list):
+            for quiz in quizzes:
+                if not isinstance(quiz, dict):
+                    continue
+                question = quiz.get("question")
+                answer = quiz.get("answer")
+                if isinstance(question, str) and question.strip() and isinstance(answer, str) and answer.strip():
+                    sections.append(f"問題: {question}\n答え: {answer}")
+        content = "\n\n".join(sections)
+
+    if not content:
+        return "保存する学習記録が空です。"
+
+    LEARNING_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    filename = datetime.now().strftime("%Y%m%d_%H%M%S") + ".md"
+    path = LEARNING_LOG_DIR / filename
+    path.write_text(content, encoding="utf-8")
+    QUIZ_PATH.write_text("[]", encoding="utf-8")
+    return f"学習記録を保存しました: {path}"

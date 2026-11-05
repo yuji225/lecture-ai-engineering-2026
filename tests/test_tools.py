@@ -1,6 +1,8 @@
 """ツールのテスト（LLMもAPIキーも使わない）。"""
 
 import json
+import inspect
+from unittest.mock import patch
 
 from app import tools
 
@@ -39,3 +41,49 @@ def test_lecture_summary():
     assert "まだありません" in tools.get_lecture_summary(99)
 
 
+def test_save_learning_log_has_no_free_text_argument():
+    parameters = inspect.signature(tools.save_learning_log).parameters
+    assert "content" not in parameters
+
+
+def test_save_learning_log_reports_empty_quiz_content(tmp_path):
+    quiz_path = tmp_path / "quiz.json"
+
+    with patch.object(tools, "QUIZ_PATH", quiz_path):
+        assert tools.save_learning_log() == "保存する学習記録が空です。"
+
+        quiz_path.write_text("壊れたJSON", encoding="utf-8")
+        assert tools.save_learning_log() == "保存する学習記録が空です。"
+
+        quiz_path.write_text("[]", encoding="utf-8")
+        assert tools.save_learning_log() == "保存する学習記録が空です。"
+
+
+def test_make_quiz_appends_and_save_learning_log_clears(tmp_path):
+    log_dir = tmp_path / "learning_log"
+    quiz_path = log_dir / "quiz.json"
+
+    with (
+        patch.object(tools, "LEARNING_LOG_DIR", log_dir),
+        patch.object(tools, "QUIZ_PATH", quiz_path),
+        patch.object(tools.random, "choice", lambda items: items[0]),
+        patch.object(tools, "load_glossary", return_value=[
+            {"term": "用語A", "lecture": 2, "definition": "定義A", "id": "a", "aliases": [], "related": []},
+            {"term": "用語B", "lecture": 2, "definition": "定義B", "id": "b", "aliases": [], "related": []},
+        ]),
+    ):
+        tools.make_quiz(2)
+        tools.make_quiz(2)
+
+        quizzes = json.loads(quiz_path.read_text(encoding="utf-8"))
+        assert len(quizzes) == 2
+        assert quizzes[0]["answer"] == "定義A"
+        assert quizzes[1]["answer"] == "定義A"
+
+        result = tools.save_learning_log()
+        saved_files = list(log_dir.glob("20*.md"))
+        assert len(saved_files) == 1
+        text = saved_files[0].read_text(encoding="utf-8")
+        assert text.count("問題:") == 2
+        assert json.loads(quiz_path.read_text(encoding="utf-8")) == []
+        assert "保存しました" in result

@@ -98,6 +98,26 @@ def search_materials(query: str) -> str:
         return json.dumps({"error": api_error_message(e.code), "results": []}, ensure_ascii=False)
 
 
+def search2(query: str) -> str:
+    """第1〜3回の本講義資料を検索し、同じ資料・章の前後ページも補助情報として返す。
+
+    検索ヒットはresults、重複を除いた前後ページはcontext_pagesに含まれる。
+    queryには調べたい内容を指定する。
+    """
+    from google.genai.errors import APIError
+    import sqlite3
+    from app.retrieval import search2 as search_with_context
+
+    try:
+        return json.dumps(search_with_context(query), ensure_ascii=False)
+    except (ValueError, FileNotFoundError, sqlite3.Error) as e:
+        return json.dumps({"error": str(e), "results": [], "context_pages": []}, ensure_ascii=False)
+    except APIError as e:
+        return json.dumps({
+            "error": api_error_message(e.code), "results": [], "context_pages": []
+        }, ensure_ascii=False)
+
+
 def browse_tree(node_id: str | None = None) -> str:
     """目次とページの先頭文を返す。ページIDを指定すると全文を返す。
 

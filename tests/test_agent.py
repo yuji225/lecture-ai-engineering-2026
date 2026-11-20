@@ -13,7 +13,7 @@ from pydantic_ai.models.test import TestModel
 
 from app.agent import agent
 
-BASE_TOOLS = {"search_materials"}
+BASE_TOOLS = {"search_materials", "search2"}
 
 
 def _parts(result, kind):
@@ -46,3 +46,26 @@ def test_material_result_reaches_the_model(monkeypatch):
     returns = _parts(result, ToolReturnPart)
     assert returns and returns[0].tool_name == "search_materials"
     assert json.loads(returns[0].content)["results"] == [hit]
+
+
+def test_search2_context_reaches_the_model(monkeypatch):
+    hit = {"page_id": "p010", "distance": 0.1, "content": "中央ページ"}
+    page = {
+        "page_id": "p009", "document_id": "lec01-main", "section": "章1",
+        "page": 9, "content": "前ページ",
+    }
+    monkeypatch.setattr("app.retrieval.search", lambda query: [hit])
+    monkeypatch.setattr("app.retrieval.load_pages", lambda source: [
+        page,
+        {"page_id": "p010", "document_id": "lec01-main", "section": "章1",
+         "page": 10, "content": "中央ページ"},
+    ])
+    model = TestModel(call_tools=["search2"])
+    with agent.override(model=model):
+        result = agent.run_sync("このページの前後関係は？")
+
+    returns = _parts(result, ToolReturnPart)
+    assert returns and returns[0].tool_name == "search2"
+    payload = json.loads(returns[0].content)
+    assert payload["results"] == [hit]
+    assert payload["context_pages"][0]["page_id"] == "p009"

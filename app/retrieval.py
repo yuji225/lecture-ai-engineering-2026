@@ -138,6 +138,50 @@ def search(query: str) -> list[dict]:
         return [dict(row) for row in rows]
 
 
+def search2(query: str) -> dict:
+    """ベクトル検索結果と、同じ資料・章にある前後ページを返す。"""
+    results = search(query)
+    if not results:
+        return {"results": [], "context_pages": []}
+
+    pages = load_pages(RAG_SOURCE)
+    page_positions = {page["page_id"]: index for index, page in enumerate(pages)}
+    pages_by_id = {page["page_id"]: page for page in pages}
+    result_ids = {hit["page_id"] for hit in results}
+    context_pages = {}
+
+    for hit in results:
+        center = pages_by_id.get(hit["page_id"])
+        position = page_positions.get(hit["page_id"])
+        if center is None or position is None:
+            continue
+
+        for offset, relation in ((-1, "previous"), (1, "next")):
+            neighbor_position = position + offset
+            if not 0 <= neighbor_position < len(pages):
+                continue
+            neighbor = pages[neighbor_position]
+            if (neighbor["document_id"] != center["document_id"]
+                    or neighbor["section"] != center["section"]
+                    or neighbor["page_id"] in result_ids):
+                continue
+
+            context = context_pages.setdefault(
+                neighbor["page_id"], {**neighbor, "related_to": []}
+            )
+            context["related_to"].append({
+                "page_id": hit["page_id"],
+                "relation": relation,
+            })
+
+    return {
+        "results": results,
+        "context_pages": sorted(
+            context_pages.values(), key=lambda page: page_positions[page["page_id"]]
+        ),
+    }
+
+
 def search_graph(query: str) -> dict:
     """ベクトル検索を入口に、前後ページと共通用語で候補を広げる。"""
     pages = {page["page_id"]: page for page in load_pages(RAG_SOURCE)}

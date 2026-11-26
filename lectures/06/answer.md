@@ -4,11 +4,11 @@
 
 <!-- [tool call] の行は、表示された行をそのまま貼り付けてください。終わらなかった STEP は、空欄のままでかまいません。 -->
 
-- STEP 1 のツールの名前：
-- STEP 2 の [tool call]：
-- STEP 3 の [tool call]：
-- STEP 4 の [tool call]：
-- 気づき・疑問：
+- STEP 1 のツールの名前： glossary_search_glossary
+- STEP 2 の [tool call]： glossary_search_glossary({'query': '3レベル'})
+- STEP 3 の [tool call]： fetch_fetch({'url': 'https://modelcontextprotocol.io/'})
+- STEP 4 の [tool call]： aws_aws___search_documentation({'search_phrase': 'Amazon S3 バージョニング 概要', 'topics': ['general']}), aws_aws___search_documentation({'search_phrase': 'Using versioning in S3 buckets', 'topics': ['general']})
+- 気づき・疑問： 前回までtools.pyで定義したツールをagent.pyから直接呼び出して実行していたことを考えると、講義でも述べられていた通り、エージェントが多く動く環境ではエージェント内で個別にツールを定義して使用するより、ツールはMCPサーバーから提供する構成にする方が効率的だと実感した。MCPサーバーで権限を最小限に絞るべきという話があったが、read権限であってもreadできる範囲について人・グループ・エージェント単位で変えたい場合はあるはずで、どういった考え方でそれを設計していくのがベストか疑問に思った。
 
 ## 宿題
 

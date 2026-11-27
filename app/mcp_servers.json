@@ -8,6 +8,9 @@
       "command": "uvx",
       "args": ["mcp-server-fetch==2026.11.11", "--no-readability-js"]
     },
+    "microsoftLearn": {
+      "url": "https://learn.microsoft.com/api/mcp"
+    },
     "aws": {"url": "https://knowledge-mcp.global.api.aws"}
   }
 }
